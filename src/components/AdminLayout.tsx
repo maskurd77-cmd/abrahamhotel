@@ -1,11 +1,34 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, ChefHat, FileText, Settings, LogOut, BarChart3, UserCog } from 'lucide-react';
-import { auth } from '../lib/firebase';
-import { signOut } from 'firebase/auth';
+import { LayoutDashboard, Users, ChefHat, FileText, Settings, LogOut, BarChart3, UserCog, Coffee } from 'lucide-react';
+import { auth, db } from '../lib/firebase';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { cn } from '../lib/utils';
+import { useEffect, useState } from 'react';
+import { User } from '../types';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const unsubUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            setCurrentUser({ user_id: docSnap.id, ...docSnap.data() } as User);
+          } else {
+             // Fallback for default superadmin hardcoded in previous versions if not in db
+             setCurrentUser({ username: 'SuperAdmin', role: 'admin', email: user.email || '', phone_number: '', permissions: [] });
+          }
+        });
+        return () => unsubUser();
+      } else {
+        navigate('/pos-shinglbana-manager-2026');
+      }
+    });
+    return () => unsubAuth();
+  }, [navigate]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -13,14 +36,21 @@ export default function AdminLayout() {
   };
 
   const navItems = [
-    { to: '/pos-shinglbana-manager-2026/pos', icon: LayoutDashboard, label: 'POS Dashboard' },
-    { to: '/pos-shinglbana-manager-2026/rooms', icon: Users, label: 'Rooms & Tables' },
-    { to: '/pos-shinglbana-manager-2026/kds', icon: ChefHat, label: 'Kitchen Display (KDS)' },
-    { to: '/pos-shinglbana-manager-2026/products', icon: FileText, label: 'Menu Management' },
-    { to: '/pos-shinglbana-manager-2026/reports', icon: BarChart3, label: 'Reports' },
-    { to: '/pos-shinglbana-manager-2026/staff', icon: UserCog, label: 'Staff & Roles' },
-    { to: '/pos-shinglbana-manager-2026/settings', icon: Settings, label: 'Settings' },
+    { to: '/pos-shinglbana-manager-2026/pos', icon: LayoutDashboard, label: 'Restaurant POS', id: 'pos' },
+    { to: '/pos-shinglbana-manager-2026/tables', icon: Coffee, label: 'Restaurant Tables', id: 'tables' },
+    { to: '/pos-shinglbana-manager-2026/rooms', icon: Users, label: 'Hotel Rooms', id: 'rooms' },
+    { to: '/pos-shinglbana-manager-2026/kds', icon: ChefHat, label: 'Kitchen Display (KDS)', id: 'kds' },
+    { to: '/pos-shinglbana-manager-2026/products', icon: FileText, label: 'Menu Management', id: 'products' },
+    { to: '/pos-shinglbana-manager-2026/reports', icon: BarChart3, label: 'Reports', id: 'reports' },
+    { to: '/pos-shinglbana-manager-2026/staff', icon: UserCog, label: 'Staff & Roles', id: 'staff' },
+    { to: '/pos-shinglbana-manager-2026/settings', icon: Settings, label: 'Settings', id: 'settings' },
   ];
+
+  const visibleNavItems = navItems.filter(item => {
+    if (currentUser?.role === 'admin') return true;
+    if (currentUser?.permissions && currentUser.permissions.includes(item.id)) return true;
+    return false;
+  });
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] font-sans text-slate-800 flex overflow-hidden">
@@ -35,7 +65,7 @@ export default function AdminLayout() {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
              <NavLink
                key={item.to}
                to={item.to}
@@ -87,11 +117,11 @@ export default function AdminLayout() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-sm font-bold">Abrahem SuperAdmin</p>
-              <p className="text-[10px] text-slate-500 uppercase">Role: Solutions Architect</p>
+              <p className="text-sm font-bold">{currentUser?.username || 'Loading...'}</p>
+              <p className="text-[10px] text-slate-500 uppercase">Role: {currentUser?.role || 'Guest'}</p>
             </div>
-            <div className="w-10 h-10 bg-[#F1F5F9] rounded-full border-2 border-[#D4AF37] flex items-center justify-center text-slate-500 font-bold">
-               A
+            <div className="w-10 h-10 bg-[#F1F5F9] rounded-full border-2 border-[#D4AF37] flex items-center justify-center text-slate-500 font-bold uppercase">
+               {currentUser?.username?.[0] || 'A'}
             </div>
           </div>
         </header>

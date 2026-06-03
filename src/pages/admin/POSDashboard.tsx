@@ -24,6 +24,7 @@ export default function POSDashboard() {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [search, setSearch] = useState('');
   const [localDestination, setLocalDestination] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('All');
   
   // Payment Modal State
   const [paymentModal, setPaymentModal] = useState(false);
@@ -83,18 +84,35 @@ export default function POSDashboard() {
 
   // Load Tab Orders
   useEffect(() => {
-    if (!currentTab || !currentTab.current_otp) {
+    if (!currentTab) {
       setTabOrders([]);
       return;
     }
-    const q = query(
-      collection(db, 'orders'),
-      where('room_id', '==', currentTab.id),
-      where('otp_used', '==', currentTab.current_otp)
-    );
+    
+    // For Rooms, we strictly match OTP to prevent old orders. For Tables, they are transient so unpaid is enough.
+    if (currentTab.type === 'room' && !currentTab.current_otp) {
+       setTabOrders([]);
+       return;
+    }
+
+    let q;
+    if (currentTab.type === 'table') {
+      q = query(
+        collection(db, 'orders'),
+        where('room_id', '==', currentTab.id),
+        where('payment_status', '==', 'unpaid')
+      );
+    } else {
+      q = query(
+        collection(db, 'orders'),
+        where('room_id', '==', currentTab.id),
+        where('otp_used', '==', currentTab.current_otp)
+      );
+    }
+
     const unsub = onSnapshot(q, (snapshot) => {
       const ords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-      // Filter out paid orders
+      // For rooms we still filter out paid just safely
       setTabOrders(ords.filter(o => o.payment_status !== 'paid'));
     });
     return () => unsub();
@@ -126,18 +144,26 @@ export default function POSDashboard() {
         await addDoc(collection(db, 'orders'), {
           room_id: currentTab.id,
           room_number: currentTab.room_number,
-          otp_used: currentTab.current_otp,
+          room_type: currentTab.type,
+          otp_used: currentTab.current_otp || null,
           items: cart,
           total_price: cartTotal,
           order_status: 'pending',
           payment_status: 'unpaid',
           created_at: serverTimestamp()
         });
+        
+        // If it's a table and it was empty, mark it as occupied
+        if (currentTab.type === 'table' && currentTab.status === 'empty') {
+           await updateDoc(doc(db, 'rooms', currentTab.id!), { status: 'occupied' });
+        }
+
         toast.success(`Sent to KDS for ${currentTab.room_number}`);
       } else {
         await addDoc(collection(db, 'orders'), {
           room_id: 'local',
           room_number: localDestination || 'POS Walk-in',
+          room_type: 'local',
           otp_used: null,
           items: cart,
           total_price: cartTotal,
@@ -203,10 +229,14 @@ export default function POSDashboard() {
 
         setTimeout(() => window.print(), 100);
         
-        toast.success('Table Paid and Cleared');
+        toast.success('Tab Paid and Cleared');
         setPaymentModal(false);
         setAmountGiven('');
-        navigate('/pos-shinglbana-manager-2026/rooms'); // Redirect back to rooms
+        if (currentTab.type === 'table') {
+          navigate('/pos-shinglbana-manager-2026/tables');
+        } else {
+          navigate('/pos-shinglbana-manager-2026/rooms');
+        }
       } else {
         // Walk in instant checkout (no tab history)
         // Just print the receipt of what we would have sent, but wait - Walk-in is usually send order, then later they pay.
@@ -236,7 +266,13 @@ export default function POSDashboard() {
      }, 100);
   };
 
-  const filteredProds = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+  const categories = ['All', ...new Set(products.map(p => p.category))];
+  
+  const filteredProds = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   // Helper for humanizing times
   const formatTimeAgo = (timestamp: any) => {
@@ -246,6 +282,17 @@ export default function POSDashboard() {
     const minutes = Math.floor(seconds / 60);
     return `${minutes} mins ago`;
   };
+
+  // Live Orders Tab State
+  const [liveOrdersTab, setLiveOrdersTab] = useState<'all' | 'table' | 'room'>('all');
+
+  // Filter Active Orders
+  const filteredActiveOrders = activeOrders.filter(order => {
+    if (liveOrdersTab === 'all') return true;
+    if (liveOrdersTab === 'table') return order.room_type === 'table' || order.room_type === 'local';
+    if (liveOrdersTab === 'room') return order.room_type === 'room';
+    return true;
+  });
 
   return (
     <div className="flex h-full gap-6 text-slate-800">
@@ -258,16 +305,38 @@ export default function POSDashboard() {
              <input value={search} onChange={e=>setSearch(e.target.value)} type="text" placeholder="Search menu..." className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-[#D4AF37] transition-colors" />
            </div>
         </div>
+
+        {/* Categories Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors",
+                activeCategory === cat 
+                  ? "bg-slate-800 text-white shadow-sm" 
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
         
         <div className="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max content-start pr-2">
            {filteredProds.map(p => (
               <button 
                 key={p.id} 
                 onClick={() => addToCart(p)}
-                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-[#D4AF37] text-left transition-colors shadow-sm flex flex-col justify-between h-28 active:scale-[0.98]"
+                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-[#D4AF37] hover:shadow-md text-left transition-all flex flex-col justify-between h-32 active:scale-[0.98] group relative overflow-hidden"
               >
-                 <span className="font-bold text-sm text-slate-800 leading-tight block">{p.name}</span>
-                 <span className="text-[#D4AF37] font-mono font-bold block mt-auto">{p.price.toLocaleString()} IQD</span>
+                 <div className="absolute top-0 left-0 w-1 h-full bg-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                 <div>
+                   <span className="font-bold text-sm text-slate-800 leading-tight block">{p.name}</span>
+                   <span className="text-[10px] text-slate-400 capitalize block mt-1">{p.category}</span>
+                 </div>
+                 <span className="text-[#D4AF37] bg-orange-50 px-2 py-1 rounded inline-block w-fit text-xs font-mono font-bold mt-auto border border-orange-100/50">{p.price.toLocaleString()} IQD</span>
               </button>
            ))}
            {filteredProds.length === 0 && <div className="col-span-full py-8 text-center text-slate-400 text-sm">No products found.</div>}
@@ -276,19 +345,33 @@ export default function POSDashboard() {
 
       {/* Center: Cart & Tab */}
       <div className="w-[300px] shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative">
-          <div className="p-4 border-b border-slate-200 space-y-3 bg-slate-50">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 relative">
              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-slate-900 leading-none">
-                   {isTabMode ? `Tab: ${currentTab?.room_number}` : 'Walk-in Order'}
-                </h3>
+                <div className="flex flex-col">
+                  {isTabMode ? (
+                     <>
+                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{currentTab?.type}</span>
+                       <h3 className="font-black text-xl text-slate-900 leading-tight">
+                          {currentTab?.room_number}
+                       </h3>
+                     </>
+                  ) : (
+                     <>
+                       <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Quick Order</span>
+                       <h3 className="font-black text-xl text-slate-900 leading-tight">Walk-in</h3>
+                     </>
+                  )}
+                </div>
                 {isTabMode && (
-                   <button onClick={() => navigate('/pos-shinglbana-manager-2026/pos')} className="w-6 h-6 bg-slate-200 hover:bg-slate-300 rounded flex items-center justify-center transition-colors">
-                     <X className="w-3 h-3 text-slate-600"/>
+                   <button onClick={() => navigate('/pos-shinglbana-manager-2026/pos')} className="w-8 h-8 bg-white border border-slate-200 hover:bg-slate-100 rounded-full flex items-center justify-center transition-colors text-slate-500 hover:text-slate-700">
+                     <X className="w-4 h-4"/>
                    </button>
                 )}
              </div>
              {!isTabMode && (
-                <input value={localDestination} onChange={e=>setLocalDestination(e.target.value)} type="text" placeholder="Table No. or Walk-in Name" className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-xs outline-none focus:border-[#D4AF37]" />
+                <div className="mt-3">
+                  <input value={localDestination} onChange={e=>setLocalDestination(e.target.value)} type="text" placeholder="Optional Table/Name..." className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#D4AF37]" />
+                </div>
              )}
           </div>
           
@@ -320,17 +403,19 @@ export default function POSDashboard() {
              {(cart.length > 0) && (
                <div>
                  <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">New Items (Not Sent)</div>
-                 <div className="space-y-4">
+                 <div className="space-y-3 mt-3">
                    {cart.map(item => (
-                      <div key={item.product_id} className="flex justify-between items-start group">
-                         <div className="flex-1 pr-2">
-                            <div className="font-bold text-sm text-slate-800 leading-snug">{item.name}</div>
-                            <div className="text-xs text-[#D4AF37] font-mono font-bold mt-0.5">{getProductPrice(item.product_id).toLocaleString()} IQD</div>
-                         </div>
-                         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-1 rounded-md shrink-0">
-                            <button onClick={()=>updateQ(item.product_id, -1)} className="w-5 h-5 flex items-center justify-center rounded hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200 text-slate-500 transition-colors"><Minus className="w-3 h-3"/></button>
-                            <span className="w-4 text-center font-bold text-xs">{item.quantity}</span>
-                            <button onClick={()=>updateQ(item.product_id, 1)} className="w-5 h-5 flex items-center justify-center rounded hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200 text-slate-500 transition-colors"><Plus className="w-3 h-3"/></button>
+                      <div key={item.product_id} className="flex flex-col gap-2 group border-b border-slate-50 pb-3 last:border-0">
+                         <div className="flex justify-between items-start">
+                            <div className="flex-1 pr-2">
+                               <div className="font-bold text-sm text-slate-800 leading-snug">{item.name}</div>
+                               <div className="text-xs text-[#D4AF37] font-mono font-bold mt-0.5">{(getProductPrice(item.product_id) * item.quantity).toLocaleString()} IQD</div>
+                            </div>
+                            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shrink-0 shadow-sm">
+                               <button onClick={()=>updateQ(item.product_id, -1)} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 transition-colors"><Minus className="w-3 h-3"/></button>
+                               <span className="w-6 text-center font-bold text-sm text-slate-800">{item.quantity}</span>
+                               <button onClick={()=>updateQ(item.product_id, 1)} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 transition-colors"><Plus className="w-3 h-3"/></button>
+                            </div>
                          </div>
                       </div>
                    ))}
@@ -370,15 +455,22 @@ export default function POSDashboard() {
 
       {/* Right: Live Room Orders (for printing/managing) */}
       <div className="w-[340px] bg-slate-900 rounded-xl flex flex-col text-white shrink-0 shadow-lg">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-             <h3 className="font-bold">Live Orders (KDS View)</h3>
-             <div className="flex items-center gap-2">
-               <span className="text-xs text-slate-400 font-medium">{activeOrders.length}</span>
-               <span className="bg-red-500 w-2 h-2 rounded-full animate-pulse"></span>
+          <div className="p-4 border-b border-slate-800">
+             <div className="flex justify-between items-center mb-3">
+               <h3 className="font-bold">Live Orders Grid</h3>
+               <div className="flex items-center gap-2">
+                 <span className="text-xs text-slate-400 font-medium">{filteredActiveOrders.length}</span>
+                 <span className="bg-red-500 w-2 h-2 rounded-full animate-pulse"></span>
+               </div>
+             </div>
+             <div className="flex gap-2">
+               <button onClick={() => setLiveOrdersTab('all')} className={cn("flex-1 py-1.5 text-xs font-bold rounded transition-colors", liveOrdersTab === 'all' ? "bg-[#D4AF37] text-slate-900" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}>All</button>
+               <button onClick={() => setLiveOrdersTab('table')} className={cn("flex-1 py-1.5 text-xs font-bold rounded transition-colors", liveOrdersTab === 'table' ? "bg-[#D4AF37] text-slate-900" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}>Restaurant</button>
+               <button onClick={() => setLiveOrdersTab('room')} className={cn("flex-1 py-1.5 text-xs font-bold rounded transition-colors", liveOrdersTab === 'room' ? "bg-[#D4AF37] text-slate-900" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}>Hotel Room</button>
              </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-             {activeOrders.map(order => (
+             {filteredActiveOrders.map(order => (
                <div key={order.id} className={cn(
                  "bg-slate-800 rounded-lg p-3 border-l-4",
                  order.order_status === 'pending' ? 'border-orange-500' :
@@ -421,6 +513,11 @@ export default function POSDashboard() {
        {receiptOrder && (
          <div id="thermal-receipt" className="text-black bg-white hidden print:block absolute top-0 left-0 w-[80mm] p-4 text-xs font-mono">
            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+              {settings?.logo_url && (
+                <div className="flex justify-center mb-2">
+                  <img src={settings.logo_url} alt="Logo" style={{ width: '60px', height: '60px', objectFit: 'contain', filter: 'grayscale(100%)' }} />
+                </div>
+              )}
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>{settings?.restaurant_name || 'RESTAURANT'}</h2>
               {settings?.address && <p style={{ margin: 0, fontSize: '12px' }}>{settings.address}</p>}
               {settings?.phone && <p style={{ margin: 0, fontSize: '12px' }}>{settings.phone}</p>}
@@ -463,7 +560,7 @@ export default function POSDashboard() {
               <div className="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                  <div>
                     <h2 className="text-xl font-bold text-slate-800">Checkout</h2>
-                    <p className="text-sm text-slate-500">Table {currentTab.room_number}</p>
+                    <p className="text-sm text-slate-500 capitalize">{currentTab.type} {currentTab.room_number}</p>
                  </div>
                  <button onClick={() => setPaymentModal(false)} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-full hover:bg-slate-100 text-slate-500">
                     <X className="w-4 h-4" />

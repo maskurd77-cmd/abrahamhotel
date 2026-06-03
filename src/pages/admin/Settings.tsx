@@ -13,7 +13,8 @@ export default function Settings() {
     restaurant_name: 'Shinglbana Restaurant',
     phone: '',
     address: '',
-    receipt_footer: 'Thank you for your visit!'
+    receipt_footer: 'Thank you for your visit!',
+    logo_url: ''
   });
 
   useEffect(() => {
@@ -97,6 +98,39 @@ export default function Settings() {
               />
             </div>
             <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Receipt Logo URL or File</label>
+              <div className="flex flex-col gap-2">
+                <input
+                  type="url"
+                  name="logo_url"
+                  value={settings.logo_url || ''}
+                  onChange={handleChange}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full rounded-md border border-slate-300 p-2.5 text-sm focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none transition"
+                />
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 500 * 1024) {
+                      toast.error('Logo size must be less than 500KB');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      if (event.target?.result) {
+                        setSettings(prev => ({ ...prev, logo_url: event.target!.result as string }));
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }} 
+                  className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-[#0F172A] hover:file:bg-slate-200"
+                />
+              </div>
+            </div>
+            <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Receipt Footer Message</label>
               <textarea
                 name="receipt_footer"
@@ -125,7 +159,10 @@ export default function Settings() {
           
           <div className="bg-white w-full max-w-[320px] shadow-lg rounded-sm overflow-hidden p-6 relative border-t-4 border-slate-900 font-mono text-sm mt-8">
             {/* Receipt Content Structure simulating POS printer */}
-            <div className="text-center mb-6 space-y-1">
+            <div className="text-center mb-6 space-y-1 flex flex-col items-center">
+              {settings.logo_url && (
+                 <img src={settings.logo_url} alt="Logo" className="w-16 h-16 object-contain mb-2 grayscale" />
+              )}
               <h3 className="font-bold text-xl uppercase tracking-wider">{settings.restaurant_name || 'RESTAURANT NAME'}</h3>
               {settings.address && <p className="text-xs text-slate-500 leading-tight">{settings.address}</p>}
               {settings.phone && <p className="text-xs text-slate-500">{settings.phone}</p>}

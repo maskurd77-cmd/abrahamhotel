@@ -6,6 +6,7 @@ export interface Settings {
   phone: string;
   address: string;
   receipt_footer: string;
+  logo_url?: string;
 }
 
 export interface User {
@@ -14,6 +15,7 @@ export interface User {
   email: string;
   phone_number: string;
   role: 'admin' | 'cashier' | 'customer';
+  permissions?: string[];
 }
 
 export interface Room {
@@ -31,6 +33,7 @@ export interface Product {
   category: string;
   price: number;
   available: boolean;
+  image_url?: string;
 }
 
 export interface OrderItem {

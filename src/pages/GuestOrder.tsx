@@ -4,7 +4,73 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot 
 import { db } from '../lib/firebase';
 import { Room, Product, OrderItem } from '../types';
 import toast from 'react-hot-toast';
-import { ShoppingCart, Plus, Minus, CheckCircle, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, CheckCircle, ArrowLeft, Languages } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+type Language = 'ku' | 'ar' | 'en';
+
+const translations = {
+  ku: {
+    welcome: 'بەخێربێیت',
+    room: 'ژووری',
+    table: 'مێزی',
+    passcode: 'کۆدی ئاسایش',
+    login: 'چوونەژوورەوە',
+    all: 'هەموو',
+    empty_cart: 'سەبەتەکەت بەتاڵە',
+    order_cart: 'سەبەتەی داواکاری',
+    total_price: 'نەرخی گشتی',
+    submit_order: 'ناردنی داواکاری',
+    submitting: 'دەنێردرێت...',
+    add: 'داواکردن',
+    not_found: 'هیچ بەرهەمێک نەدۆزرایەوە',
+    inactive: 'ئاکتیڤ نییە. تکایە سەردانی ڕێسپشن بکە.',
+    invalid_code: 'کۆدەکە هەڵەیە',
+    success_login: 'بە سەرکەوتوویی چوویتە ژوورەوە',
+    order_sent: 'داواکارییەکەت بە سەرکەوتوویی نێردرا',
+    order_error: 'کێشەیەک ڕوویدا لە ناردنی داواکارییەکە'
+  },
+  ar: {
+    welcome: 'أهلاً بك',
+    room: 'غرفة',
+    table: 'طاولة',
+    passcode: 'رمز الأمان',
+    login: 'تسجيل الدخول',
+    all: 'الكل',
+    empty_cart: 'سلة الطلبات فارغة',
+    order_cart: 'سلة الطلبات',
+    total_price: 'السعر الإجمالي',
+    submit_order: 'إرسال الطلب',
+    submitting: 'جاري الإرسال...',
+    add: 'إضافة',
+    not_found: 'لم يتم العثور على منتجات',
+    inactive: 'غير نشط. يرجى مراجعة الاستقبال.',
+    invalid_code: 'الرمز غير صحيح',
+    success_login: 'تم تسجيل الدخول بنجاح',
+    order_sent: 'تم إرسال الطلب بنجاح',
+    order_error: 'حدث خطأ أثناء إرسال الطلب'
+  },
+  en: {
+    welcome: 'Welcome',
+    room: 'Room',
+    table: 'Table',
+    passcode: 'Security Code',
+    login: 'Log In',
+    all: 'All',
+    empty_cart: 'Your cart is empty',
+    order_cart: 'Order Cart',
+    total_price: 'Total Price',
+    submit_order: 'Submit Order',
+    submitting: 'Submitting...',
+    add: 'Add',
+    not_found: 'No products found',
+    inactive: 'is inactive. Please visit reception.',
+    invalid_code: 'Invalid code',
+    success_login: 'Logged in successfully',
+    order_sent: 'Order sent successfully',
+    order_error: 'Error sending order'
+  }
+};
 
 export default function GuestOrder() {
   const [searchParams] = useSearchParams();
@@ -16,6 +82,10 @@ export default function GuestOrder() {
   // OTP State
   const [otpInput, setOtpInput] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
+
+  const [lang, setLang] = useState<Language | null>(null);
+  const t = lang ? translations[lang] : translations.ku;
+  const isRtl = lang === 'ku' || lang === 'ar';
 
   // Menu State
   const [products, setProducts] = useState<Product[]>([]);
@@ -76,9 +146,9 @@ export default function GuestOrder() {
     if (room && otpInput === room.current_otp) {
       localStorage.setItem(`otp_${roomNumber}`, otpInput);
       setOtpVerified(true);
-      toast.success('بە سەرکەوتوویی چوویتە ژوورەوە');
+      toast.success(t.success_login);
     } else {
-      toast.error('کۆدەکە هەڵەیە');
+      toast.error(t.invalid_code);
     }
   };
 
@@ -90,7 +160,7 @@ export default function GuestOrder() {
       }
       return [...prev, { product_id: product.id!, name: product.name, quantity: 1, note: '' }];
     });
-    toast.success(`${product.name} زیادکرا`);
+    toast.success(`${product.name}`);
   };
 
   const updateQuantity = (id: string, delta: number) => {
@@ -117,6 +187,7 @@ export default function GuestOrder() {
       await addDoc(collection(db, 'orders'), {
         room_id: room.id,
         room_number: room.room_number,
+        room_type: room.type || 'room',
         otp_used: room.current_otp,
         items: cart,
         total_price: totalPrice,
@@ -124,12 +195,12 @@ export default function GuestOrder() {
         created_at: serverTimestamp()
       });
       
-      toast.success('داواکارییەکەت بە سەرکەوتوویی نێردرا');
+      toast.success(t.order_sent);
       setCart([]);
       setViewCart(false);
     } catch (e) {
       console.error(e);
-      toast.error('کێشەیەک ڕوویدا لە ناردنی داواکارییەکە');
+      toast.error(t.order_error);
     } finally {
       setIsOrdering(false);
     }
@@ -154,7 +225,7 @@ export default function GuestOrder() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-900 text-white p-6 text-center">
         <div className="bg-orange-500/10 text-orange-400 p-6 rounded-2xl border border-orange-500/20 max-w-sm">
           <p className="text-xl font-medium leading-relaxed">
-            {room?.type === 'table' ? 'مێزی' : 'ژووری'} ژمارە {roomNumber} ئاکتیڤ نییە. تکایە سەردانی ڕێسپشن بکە.
+            {room?.type === 'table' ? 'مێزی' : 'ژووری'} ژمارە {roomNumber} {translations.ku.inactive}
           </p>
         </div>
       </div>
@@ -163,33 +234,62 @@ export default function GuestOrder() {
 
   if (!otpVerified) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-900 p-6">
-        <div className="w-full max-w-sm bg-zinc-800 rounded-3xl p-8 border border-zinc-700/50 shadow-2xl">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-white mb-2">بەخێربێیت</h1>
-            <p className="text-zinc-400">
-              {room?.type === 'table' ? 'مێزی' : 'ژووری'} ژمارە {roomNumber}
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6 selection:bg-[#D4AF37] selection:text-white" dir="rtl">
+        <div className="w-full max-w-sm bg-white rounded-3xl p-8 border border-slate-100 shadow-xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/5 blur-3xl rounded-full"></div>
+          <div className="text-center mb-8 relative z-10">
+            <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">بەخێربێیت</h1>
+            <p className="text-slate-500 font-medium">
+              {room?.type === 'table' ? 'مێزی' : 'ژووری'} <span className="font-bold text-slate-800">{roomNumber}</span>
             </p>
           </div>
-          <form onSubmit={handleOtpSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300 block text-right">کۆدی ئاسایش (چوار ژمارە)</label>
+          <form onSubmit={handleOtpSubmit} className="space-y-8 relative z-10">
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-400 block text-right tracking-widest">کۆدی ئاسایش</label>
               <input 
                 type="text" 
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0,4))}
                 placeholder="____"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-4 text-center text-3xl tracking-widest text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-5 text-center text-3xl font-mono tracking-[1em] text-slate-900 focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent outline-none transition-all shadow-inner hover:border-[#D4AF37]/30"
               />
             </div>
             <button 
               type="submit"
               disabled={otpInput.length !== 4}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-medium py-4 rounded-xl transition shadow-lg shadow-emerald-500/25"
+              className="w-full bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-bold py-4 rounded-xl transition-all shadow-md active:scale-[0.98]"
             >
               چوونەژوورەوە
             </button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (otpVerified && !lang) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6">
+        <div className="w-full max-w-sm flex flex-col gap-4">
+           <div className="text-center mb-6">
+             <div className="w-16 h-16 bg-[#D4AF37]/10 text-[#D4AF37] rounded-full flex items-center justify-center mx-auto mb-4">
+               <Languages className="w-8 h-8"/>
+             </div>
+             <h1 className="text-2xl font-black text-slate-900 mb-2">Choose Language</h1>
+             <p className="text-slate-500 text-sm">Please select your preferred language</p>
+           </div>
+           
+           <button onClick={() => setLang('ku')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold p-5 rounded-2xl shadow-sm transition-all active:scale-95 flex justify-between items-center group">
+              <span className="text-lg">کوردی</span>
+              <span className="text-slate-400 group-hover:text-[#D4AF37]">Kurdish</span>
+           </button>
+           <button onClick={() => setLang('ar')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold p-5 rounded-2xl shadow-sm transition-all active:scale-95 flex justify-between items-center group">
+              <span className="text-lg">العربية</span>
+              <span className="text-slate-400 group-hover:text-[#D4AF37]">Arabic</span>
+           </button>
+           <button onClick={() => setLang('en')} className="bg-[#0F172A] hover:bg-slate-800 text-white font-bold p-5 rounded-2xl shadow-md transition-all active:scale-95 flex justify-between items-center">
+              <span className="text-lg">English</span>
+           </button>
         </div>
       </div>
     );
@@ -201,51 +301,57 @@ export default function GuestOrder() {
 
   if (viewCart) {
     return (
-       <div className="min-h-screen bg-zinc-50 pb-24">
-         <header className="bg-white px-6 py-4 sticky top-0 z-10 shadow-sm border-b border-zinc-100 flex items-center justify-between">
-            <button onClick={() => setViewCart(false)} className="p-2 -ml-2 rounded-full hover:bg-zinc-100 text-zinc-700">
-               <ArrowLeft className="w-6 h-6" />
+       <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans selection:bg-[#D4AF37] selection:text-white" dir={isRtl ? 'rtl' : 'ltr'}>
+         <header className="bg-white px-6 py-5 sticky top-0 z-10 shadow-sm border-b border-slate-100 flex items-center justify-between">
+            <button onClick={() => setViewCart(false)} className={cn("p-2 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 text-slate-700 transition", isRtl ? "-mr-2" : "-ml-2")}>
+               <ArrowLeft className={cn("w-5 h-5", isRtl && "rotate-180")} />
             </button>
-            <h1 className="text-lg font-semibold text-zinc-900">
-              سەبەتەی داواکاری ({room?.type === 'table' ? 'مێزی' : 'ژووری'} {roomNumber})
+            <h1 className="text-lg font-black text-slate-900 tracking-tight">
+              {t.order_cart} ({room?.type === 'table' ? t.table : t.room} {roomNumber})
             </h1>
             <div className="w-10"></div>
          </header>
 
          <main className="p-6 space-y-6">
            {cart.length === 0 ? (
-             <div className="text-center py-12 text-zinc-500">سەبەتەکەت بەتاڵە</div>
+             <div className="text-center py-20 text-slate-400">{t.empty_cart}</div>
            ) : (
              <div className="space-y-4">
-               {cart.map((item) => (
-                 <div key={item.product_id} className="bg-white rounded-2xl p-4 shadow-sm border border-zinc-100 flex items-center justify-between">
-                   <div>
-                     <h3 className="font-medium text-zinc-900">{item.name}</h3>
-                     <p className="text-emerald-600 font-medium">{getProductPrice(item.product_id).toLocaleString()} IQD</p>
+               {cart.map((item) => {
+                 const pImage = products.find(p => p.id === item.product_id)?.image_url;
+                 return (
+                 <div key={item.product_id} className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex items-center gap-4">
+                   {pImage && (
+                      <img src={pImage} alt={item.name} className="w-16 h-16 rounded-2xl object-cover border border-slate-100 shrink-0 bg-slate-50" />
+                   )}
+                   <div className="flex-1">
+                     <h3 className="font-bold text-slate-900 mb-1 leading-snug">{item.name}</h3>
+                     <p className="text-[#D4AF37] font-mono text-sm font-bold">{getProductPrice(item.product_id).toLocaleString()} IQD</p>
                    </div>
-                   <div className="flex items-center gap-3">
-                     <button onClick={() => updateQuantity(item.product_id, -1)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 hover:bg-zinc-200">
+                   <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl p-1 shrink-0">
+                     <button onClick={() => updateQuantity(item.product_id, -1)} className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900">
                        <Minus className="w-4 h-4" />
                      </button>
-                     <span className="font-medium text-zinc-900 w-4 text-center">{item.quantity}</span>
-                     <button onClick={() => updateQuantity(item.product_id, 1)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 hover:bg-zinc-200">
+                     <span className="font-bold text-slate-900 w-5 text-center">{item.quantity}</span>
+                     <button onClick={() => updateQuantity(item.product_id, 1)} className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900">
                        <Plus className="w-4 h-4" />
                      </button>
                    </div>
                  </div>
-               ))}
+               )})}
                
-               <div className="bg-zinc-900 text-white rounded-2xl p-5 mt-8 shadow-xl">
-                 <div className="flex justify-between items-center mb-6">
-                   <span className="text-zinc-400">نەرخی گشتی</span>
-                   <span className="text-2xl font-semibold">{cartTotal.toLocaleString()} IQD</span>
+               <div className="bg-[#0F172A] text-white rounded-3xl p-6 mt-8 shadow-xl relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-16 h-16 bg-[#D4AF37]/20 blur-3xl rounded-full"></div>
+                 <div className="flex justify-between items-center mb-6 relative z-10">
+                   <span className="text-slate-400 font-medium">{t.total_price}</span>
+                   <span className="text-3xl font-mono font-bold text-[#D4AF37]" dir="ltr">{cartTotal.toLocaleString()} <span className="text-lg">IQD</span></span>
                  </div>
                  <button 
                   onClick={submitOrder}
                   disabled={isOrdering}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-white text-lg font-medium py-4 rounded-xl transition flex items-center justify-center gap-2"
+                  className="w-full bg-[#D4AF37] hover:bg-[#C5A028] disabled:opacity-50 text-slate-900 text-lg font-bold py-4 rounded-2xl transition flex items-center justify-center gap-2 shadow-lg relative z-10"
                  >
-                   {isOrdering ? 'دەنێردرێت...' : 'ناردنی داواکاری'}
+                   {isOrdering ? t.submitting : t.submit_order}
                    {!isOrdering && <CheckCircle className="w-5 h-5" />}
                  </button>
                </div>
@@ -256,56 +362,91 @@ export default function GuestOrder() {
     );
   }
 
-  // Categories
-  const categories = Array.from(new Set(products.map(p => p.category)));
+  const [activeCategory, setActiveCategory] = useState<string>('All');
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+
+  const filteredProducts = activeCategory === 'All' ? products : products.filter(p => p.category === activeCategory);
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-24">
-      <header className="bg-zinc-900 text-white px-6 py-6 sticky top-0 z-10 shadow-lg">
+    <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans selection:bg-[#D4AF37] selection:text-white" dir={isRtl ? 'rtl' : 'ltr'}>
+      <header className="bg-white px-6 py-5 sticky top-0 z-20 shadow-sm border-b border-slate-100">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold">شینگلبانە</h1>
-            <p className="text-zinc-400 text-sm">
-              {room?.type === 'table' ? 'مێزی' : 'ژووری'} ژمارە {roomNumber}
+            <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">شینگلبانە</h1>
+            <p className="text-slate-500 text-[10px] md:text-xs font-bold mt-0.5 tracking-wider">
+              {room?.type === 'table' ? t.table : t.room} {roomNumber}
             </p>
           </div>
-          <button 
-            onClick={() => setViewCart(true)}
-            className="relative p-3 bg-zinc-800 rounded-full hover:bg-zinc-700 transition"
-          >
-            <ShoppingCart className="w-6 h-6 text-zinc-100" />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full font-bold shadow-sm">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+               onClick={() => setLang(null)}
+               className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition shadow-sm"
+               title="Change Language"
+            >
+               <Languages className="w-5 h-5 text-slate-600" />
+            </button>
+            <button 
+              onClick={() => setViewCart(true)}
+              className="relative p-3 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 transition shadow-sm"
+            >
+              <ShoppingCart className="w-5 h-5 text-slate-700" />
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#D4AF37] text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-md ring-2 ring-white">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+        
+        {/* Categories Tabs */}
+        <div className="flex gap-2 overflow-x-auto pt-5 pb-1 scrollbar-none snap-x" dir={isRtl ? 'rtl' : 'ltr'}>
+          {categories.map(cat => (
+             <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={cn(
+                  "px-5 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-300 snap-center",
+                  activeCategory === cat 
+                    ? "bg-[#0F172A] text-white shadow-md scale-100" 
+                    : "bg-white border text-slate-500 border-slate-200 hover:bg-slate-50 scale-95"
+                )}
+             >
+                {cat === 'All' ? t.all : cat}
+             </button>
+          ))}
         </div>
       </header>
 
-      <main className="p-6 space-y-8">
-        {categories.map(category => (
-          <div key={category} className="space-y-4">
-            <h2 className="text-lg font-bold text-zinc-900 capitalize px-2">{category}</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {products.filter(p => p.category === category).map(product => (
-                 <div key={product.id} className="bg-white rounded-2xl p-4 shadow-sm border border-zinc-100 flex flex-col justify-between">
-                   <div>
-                     <h3 className="font-medium text-zinc-900 leading-tight mb-1">{product.name}</h3>
-                     <p className="text-emerald-600 font-semibold">{product.price.toLocaleString()} IQD</p>
-                   </div>
-                   <button 
-                     onClick={() => addToCart(product)}
-                     className="mt-4 w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-medium py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-1"
-                   >
-                     <Plus className="w-4 h-4" />
-                     زیادکردن
-                   </button>
-                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      <main className="p-4 md:p-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+          {filteredProducts.map(product => (
+             <div key={product.id} className="bg-white rounded-3xl p-3 md:p-4 shadow-sm border border-slate-100 flex flex-col justify-between group overflow-hidden relative">
+               {product.image_url && (
+                  <div className="w-full h-24 md:h-32 mb-3 rounded-2xl overflow-hidden bg-slate-100 shrink-0 shadow-inner">
+                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  </div>
+               )}
+               <div className="absolute top-0 right-0 w-1 h-0 bg-[#D4AF37] transition-all group-hover:h-full"></div>
+               <div className="flex-1">
+                 <h3 className="font-bold text-slate-800 leading-snug mb-2 text-sm md:text-base">{product.name}</h3>
+                 <span className="inline-block bg-orange-50 text-[#D4AF37] border border-orange-100 text-[11px] md:text-xs font-mono font-bold px-2 py-1 rounded-md" dir="ltr">
+                    {product.price.toLocaleString()} IQD
+                 </span>
+               </div>
+               <button 
+                 onClick={() => addToCart(product)}
+                 className="mt-4 md:mt-5 w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2.5 md:py-3 rounded-xl text-xs md:text-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-[#0F172A] group-hover:text-white"
+               >
+                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                 {t.add}
+               </button>
+             </div>
+          ))}
+        </div>
+        {filteredProducts.length === 0 && (
+           <div className="text-center py-20 text-slate-400">{t.not_found}</div>
+        )}
       </main>
     </div>
   );

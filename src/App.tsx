@@ -16,6 +16,7 @@ import ProductsManager from './pages/admin/ProductsManager';
 import StaffManager from './pages/admin/StaffManager';
 import Settings from './pages/admin/Settings';
 import Reports from './pages/admin/Reports';
+import TablesManager from './pages/admin/TablesManager';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
@@ -46,6 +47,7 @@ export default function App() {
           }
         >
           <Route path="pos" element={<POSDashboard />} />
+          <Route path="tables" element={<TablesManager />} />
           <Route path="rooms" element={<RoomsManager />} />
           <Route path="kds" element={<KitchenDisplay />} />
           <Route path="products" element={<ProductsManager />} />

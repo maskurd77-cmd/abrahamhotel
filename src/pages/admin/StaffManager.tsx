@@ -5,8 +5,19 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { db, firebaseConfig } from '../../lib/firebase';
 import { User } from '../../types';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Shield, User as UserIcon, Lock } from 'lucide-react';
+import { Plus, Trash2, Shield, User as UserIcon, Lock, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
+
+const AVAILABLE_PERMISSIONS = [
+  { id: 'pos', label: 'Restaurant POS' },
+  { id: 'tables', label: 'Restaurant Tables' },
+  { id: 'rooms', label: 'Hotel Rooms' },
+  { id: 'kds', label: 'Kitchen Display (KDS)' },
+  { id: 'products', label: 'Menu Management' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'staff', label: 'Staff & Roles' },
+  { id: 'settings', label: 'Settings' }
+];
 
 export default function StaffManager() {
   const [users, setUsers] = useState<User[]>([]);
@@ -16,6 +27,7 @@ export default function StaffManager() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'cashier'>('cashier');
+  const [permissions, setPermissions] = useState<string[]>(['pos', 'tables']);
 
   useEffect(() => {
     const q = collection(db, 'users');
@@ -25,6 +37,10 @@ export default function StaffManager() {
     });
     return () => unsubscribe();
   }, []);
+
+  const togglePermission = (id: string) => {
+    setPermissions(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +54,15 @@ export default function StaffManager() {
       
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       
-      // Save data in firestore
+      // Save data in firestore (Admin gets all permissions)
+      const finalPerms = role === 'admin' ? AVAILABLE_PERMISSIONS.map(p => p.id) : permissions;
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         user_id: userCredential.user.uid,
         username: email.split('@')[0],
         email: email,
         phone_number: '',
-        role: role
+        role: role,
+        permissions: finalPerms
       });
 
       // Sign out from the secondary instance
@@ -54,6 +72,7 @@ export default function StaffManager() {
       setEmail('');
       setPassword('');
       setRole('cashier');
+      setPermissions(['pos', 'tables']);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || 'Error creating user');
@@ -76,7 +95,7 @@ export default function StaffManager() {
   if (loading) return <div className="text-slate-500 animate-pulse">Loading staff directory...</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-800">Staff & Roles</h2>
@@ -142,10 +161,33 @@ export default function StaffManager() {
                 </button>
               </div>
             </div>
+
+            {role === 'cashier' && (
+              <div>
+                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Access Permissions</label>
+                 <div className="grid grid-cols-2 gap-2">
+                    {AVAILABLE_PERMISSIONS.map(p => {
+                       const active = permissions.includes(p.id);
+                       return (
+                         <div key={p.id} onClick={() => togglePermission(p.id)} className={cn(
+                           "flex items-center gap-2 p-2 rounded border cursor-pointer transition select-none",
+                           active ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                         )}>
+                            <div className={cn("w-4 h-4 rounded border flex items-center justify-center", active ? "bg-blue-500 border-blue-500 text-white" : "border-slate-300")}>
+                               {active && <Check className="w-3 h-3" />}
+                            </div>
+                            <span className="text-xs font-medium">{p.label}</span>
+                         </div>
+                       )
+                    })}
+                 </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isAdding}
-              className="w-full bg-slate-900 text-white font-medium py-2 rounded-md hover:bg-slate-800 transition disabled:opacity-50"
+              className="w-full bg-slate-900 text-white font-medium py-2 rounded-md hover:bg-slate-800 transition disabled:opacity-50 mt-2"
             >
               {isAdding ? "Provisioning..." : "Create Account"}
             </button>
@@ -159,7 +201,7 @@ export default function StaffManager() {
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-bold">
                 <tr>
                   <th className="px-6 py-4">User Identity</th>
-                  <th className="px-6 py-4">Role</th>
+                  <th className="px-6 py-4">Role & Access</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -171,15 +213,25 @@ export default function StaffManager() {
                       <div className="text-slate-500 text-xs">{u.email}</div>
                     </td>
                     <td className="px-6 py-4">
-                      {u.role === 'admin' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                          <Shield className="w-3 h-3" /> Admin
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-800">
-                           Cashier
-                        </span>
-                      )}
+                      <div className="flex flex-col gap-1 items-start">
+                        {u.role === 'admin' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                            <Shield className="w-3 h-3" /> Admin (Full Access)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                             Cashier
+                          </span>
+                        )}
+                        {u.role === 'cashier' && u.permissions && (
+                          <div className="flex gap-1 flex-wrap mt-1">
+                             {u.permissions.map(pid => {
+                                const l = AVAILABLE_PERMISSIONS.find(ap => ap.id === pid)?.label || pid;
+                                return <span key={pid} className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium border border-slate-200">{l}</span>
+                             })}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
