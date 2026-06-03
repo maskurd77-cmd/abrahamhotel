@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-receipt, #thermal-receipt * {
+    visibility: visible;
+  }
+  #thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* standard thermal receipt width */
+    padding: 0;
+    margin: 0;
+    font-family: monospace;
+    font-size: 12px;
+  }
+}
+
