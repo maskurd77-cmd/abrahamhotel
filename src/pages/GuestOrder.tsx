@@ -120,16 +120,6 @@ export default function GuestOrder() {
           // Check if occupied
           if (roomData.status !== 'occupied') {
              toast.error('ژوورەکە بەتاڵە، تکایە پەیوەندی بە ڕێسپشنەوە بکە', { duration: 5000 });
-          } else {
-             // Check local storage for OTP
-             try {
-               const savedOtp = localStorage.getItem(`otp_${roomNumber}`);
-               if (savedOtp && savedOtp === roomData.current_otp) {
-                 setOtpVerified(true);
-               }
-             } catch (e) {
-               console.error("Local storage not accessible", e);
-             }
           }
         }
       } catch (err) {
@@ -156,11 +146,6 @@ export default function GuestOrder() {
   const handleOtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (room && otpInput === room.current_otp) {
-      try {
-        localStorage.setItem(`otp_${roomNumber}`, otpInput);
-      } catch (e) {
-        console.warn("Could not save to localStorage", e);
-      }
       setOtpVerified(true);
       toast.success(t.success_login);
     } else {
@@ -244,18 +229,6 @@ export default function GuestOrder() {
     );
   }
 
-  if (room.status !== 'occupied') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-900 text-white p-6 text-center">
-        <div className="bg-orange-500/10 text-orange-400 p-6 rounded-2xl border border-orange-500/20 max-w-sm">
-          <p className="text-xl font-medium leading-relaxed">
-            {room?.type === 'table' ? 'مێزی' : 'ژووری'} ژمارە {roomNumber} {translations.ku.inactive}
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   if (!lang) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6">
@@ -282,6 +255,19 @@ export default function GuestOrder() {
         </div>
       </div>
     );
+  }
+
+  if (room.status !== 'occupied') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6 text-center" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="bg-white text-slate-800 p-8 rounded-3xl border border-slate-200 max-w-sm shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full"></div>
+          <p className="text-xl font-bold leading-relaxed relative z-10">
+            {room?.type === 'table' ? t.table : t.room} {roomNumber} {t.inactive}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (!otpVerified) {
