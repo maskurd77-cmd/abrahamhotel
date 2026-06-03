@@ -7,10 +7,36 @@ import toast from 'react-hot-toast';
 import { Plus, Minus, Printer, CheckCircle, Search, Trash, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+const playNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    console.error("Audio playback failed", e);
+  }
+};
+
 export default function POSDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const tabId = searchParams.get('tab');
+  const initialLoadDone = useRef(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
@@ -59,6 +85,15 @@ export default function POSDashboard() {
          return timeB - timeA; // desc
       });
       setActiveOrders(ords);
+
+      if (initialLoadDone.current) {
+         const hasNew = snapshot.docChanges().some(change => change.type === 'added');
+         if (hasNew) {
+            playNotificationSound();
+         }
+      } else {
+         initialLoadDone.current = true;
+      }
     });
 
     return () => { unsubProds(); unsubOrders(); };

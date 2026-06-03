@@ -83,7 +83,14 @@ export default function GuestOrder() {
   const [otpInput, setOtpInput] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
 
-  const [lang, setLang] = useState<Language | null>(null);
+  const [lang, setLang] = useState<Language | null>(() => {
+    return (localStorage.getItem('preferred_lang') as Language) || null;
+  });
+
+  const handleSetLang = (l: Language) => {
+    setLang(l);
+    localStorage.setItem('preferred_lang', l);
+  };
   const t = lang ? translations[lang] : translations.ku;
   const isRtl = lang === 'ku' || lang === 'ar';
 
@@ -115,9 +122,13 @@ export default function GuestOrder() {
              toast.error('ژوورەکە بەتاڵە، تکایە پەیوەندی بە ڕێسپشنەوە بکە', { duration: 5000 });
           } else {
              // Check local storage for OTP
-             const savedOtp = localStorage.getItem(`otp_${roomNumber}`);
-             if (savedOtp && savedOtp === roomData.current_otp) {
-               setOtpVerified(true);
+             try {
+               const savedOtp = localStorage.getItem(`otp_${roomNumber}`);
+               if (savedOtp && savedOtp === roomData.current_otp) {
+                 setOtpVerified(true);
+               }
+             } catch (e) {
+               console.error("Local storage not accessible", e);
              }
           }
         }
@@ -145,7 +156,11 @@ export default function GuestOrder() {
   const handleOtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (room && otpInput === room.current_otp) {
-      localStorage.setItem(`otp_${roomNumber}`, otpInput);
+      try {
+        localStorage.setItem(`otp_${roomNumber}`, otpInput);
+      } catch (e) {
+        console.warn("Could not save to localStorage", e);
+      }
       setOtpVerified(true);
       toast.success(t.success_login);
     } else {
@@ -153,15 +168,23 @@ export default function GuestOrder() {
     }
   };
 
+  const getProductName = (product: Product | undefined) => {
+    if (!product) return '';
+    if (lang === 'ar' && product.name_ar) return product.name_ar;
+    if (lang === 'en' && product.name_en) return product.name_en;
+    return product.name;
+  };
+
   const addToCart = (product: Product) => {
+    const displayName = getProductName(product);
     setCart(prev => {
       const existing = prev.find(item => item.product_id === product.id);
       if (existing) {
         return prev.map(item => item.product_id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { product_id: product.id!, name: product.name, quantity: 1, note: '' }];
+      return [...prev, { product_id: product.id!, name: displayName, quantity: 1, note: '' }];
     });
-    toast.success(`${product.name}`);
+    toast.success(displayName);
   };
 
   const updateQuantity = (id: string, delta: number) => {
@@ -233,20 +256,48 @@ export default function GuestOrder() {
     )
   }
 
+  if (!lang) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6">
+        <div className="w-full max-w-sm flex flex-col gap-4">
+           <div className="text-center mb-6">
+             <div className="w-16 h-16 bg-[#D4AF37]/10 text-[#D4AF37] rounded-full flex items-center justify-center mx-auto mb-4">
+               <Languages className="w-8 h-8"/>
+             </div>
+             <h1 className="text-2xl font-black text-slate-900 mb-1">Choose Language</h1>
+             <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-4">تکایە زمان هەڵبژێرە / الرجاء اختيار اللغة</p>
+           </div>
+           
+           <button onClick={() => handleSetLang('ku')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold p-5 rounded-2xl shadow-sm transition-all active:scale-95 flex justify-between items-center group">
+              <span className="text-lg">کوردی</span>
+              <span className="text-slate-400 group-hover:text-[#D4AF37]">Kurdish</span>
+           </button>
+           <button onClick={() => handleSetLang('ar')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold p-5 rounded-2xl shadow-sm transition-all active:scale-95 flex justify-between items-center group">
+              <span className="text-lg">العربية</span>
+              <span className="text-slate-400 group-hover:text-[#D4AF37]">Arabic</span>
+           </button>
+           <button onClick={() => handleSetLang('en')} className="bg-[#0F172A] hover:bg-slate-800 text-white font-bold p-5 rounded-2xl shadow-md transition-all active:scale-95 flex justify-between items-center">
+              <span className="text-lg">English</span>
+           </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!otpVerified) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6 selection:bg-[#D4AF37] selection:text-white" dir="rtl">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6 selection:bg-[#D4AF37] selection:text-white" dir={isRtl ? "rtl" : "ltr"}>
         <div className="w-full max-w-sm bg-white rounded-3xl p-8 border border-slate-100 shadow-xl overflow-hidden relative">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/5 blur-3xl rounded-full"></div>
           <div className="text-center mb-8 relative z-10">
-            <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">بەخێربێیت</h1>
+            <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">{t.welcome}</h1>
             <p className="text-slate-500 font-medium">
-              {room?.type === 'table' ? 'مێزی' : 'ژووری'} <span className="font-bold text-slate-800">{roomNumber}</span>
+              {room?.type === 'table' ? t.table : t.room} <span className="font-bold text-slate-800">{roomNumber}</span>
             </p>
           </div>
           <form onSubmit={handleOtpSubmit} className="space-y-8 relative z-10">
             <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-400 block text-right tracking-widest">کۆدی ئاسایش</label>
+              <label className={cn("text-xs font-bold text-slate-400 block tracking-widest", isRtl ? "text-right" : "text-left")}>{t.passcode}</label>
               <input 
                 type="text" 
                 value={otpInput}
@@ -260,37 +311,9 @@ export default function GuestOrder() {
               disabled={otpInput.length !== 4}
               className="w-full bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-bold py-4 rounded-xl transition-all shadow-md active:scale-[0.98]"
             >
-              چوونەژوورەوە
+              {t.login}
             </button>
           </form>
-        </div>
-      </div>
-    );
-  }
-
-  if (otpVerified && !lang) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] p-6">
-        <div className="w-full max-w-sm flex flex-col gap-4">
-           <div className="text-center mb-6">
-             <div className="w-16 h-16 bg-[#D4AF37]/10 text-[#D4AF37] rounded-full flex items-center justify-center mx-auto mb-4">
-               <Languages className="w-8 h-8"/>
-             </div>
-             <h1 className="text-2xl font-black text-slate-900 mb-2">Choose Language</h1>
-             <p className="text-slate-500 text-sm">Please select your preferred language</p>
-           </div>
-           
-           <button onClick={() => setLang('ku')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold p-5 rounded-2xl shadow-sm transition-all active:scale-95 flex justify-between items-center group">
-              <span className="text-lg">کوردی</span>
-              <span className="text-slate-400 group-hover:text-[#D4AF37]">Kurdish</span>
-           </button>
-           <button onClick={() => setLang('ar')} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold p-5 rounded-2xl shadow-sm transition-all active:scale-95 flex justify-between items-center group">
-              <span className="text-lg">العربية</span>
-              <span className="text-slate-400 group-hover:text-[#D4AF37]">Arabic</span>
-           </button>
-           <button onClick={() => setLang('en')} className="bg-[#0F172A] hover:bg-slate-800 text-white font-bold p-5 rounded-2xl shadow-md transition-all active:scale-95 flex justify-between items-center">
-              <span className="text-lg">English</span>
-           </button>
         </div>
       </div>
     );
@@ -363,7 +386,7 @@ export default function GuestOrder() {
     );
   }
 
-  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category).filter(Boolean))) as string[]];
 
   const filteredProducts = activeCategory === 'All' ? products : products.filter(p => p.category === activeCategory);
 
@@ -418,29 +441,36 @@ export default function GuestOrder() {
         </div>
       </header>
 
-      <main className="p-4 md:p-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+      <main className="p-4 md:p-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredProducts.map(product => (
-             <div key={product.id} className="bg-white rounded-3xl p-3 md:p-4 shadow-sm border border-slate-100 flex flex-col justify-between group overflow-hidden relative">
-               {product.image_url && (
-                  <div className="w-full h-24 md:h-32 mb-3 rounded-2xl overflow-hidden bg-slate-100 shrink-0 shadow-inner">
-                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+             <div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center gap-4 group hover:shadow-md transition-all">
+               {product.image_url ? (
+                  <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-50 shrink-0 border border-slate-100 shadow-inner">
+                    <img src={product.image_url} alt={getProductName(product)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  </div>
+               ) : (
+                  <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-50 shrink-0 border border-slate-100 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full border-2 border-slate-200"></div>
                   </div>
                )}
-               <div className="absolute top-0 right-0 w-1 h-0 bg-[#D4AF37] transition-all group-hover:h-full"></div>
-               <div className="flex-1">
-                 <h3 className="font-bold text-slate-800 leading-snug mb-2 text-sm md:text-base">{product.name}</h3>
-                 <span className="inline-block bg-orange-50 text-[#D4AF37] border border-orange-100 text-[11px] md:text-xs font-mono font-bold px-2 py-1 rounded-md" dir="ltr">
-                    {product.price.toLocaleString()} IQD
-                 </span>
+               <div className="flex-1 flex flex-col justify-center h-full">
+                 <div>
+                   <h3 className="font-bold text-slate-900 leading-tight mb-1 text-base">{getProductName(product)}</h3>
+                   <div className="text-[#D4AF37] font-mono font-bold text-sm" dir="ltr">
+                      {product.price.toLocaleString()} <span className="text-[10px] text-slate-400 font-sans tracking-wide">IQD</span>
+                   </div>
+                 </div>
+                 <div className="mt-2.5 flex justify-end">
+                   <button 
+                     onClick={() => addToCart(product)}
+                     className="bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2 px-4 rounded-xl text-xs transition-all flex items-center gap-1.5 active:scale-95 group-hover:bg-[#0F172A] group-hover:text-white"
+                   >
+                     <Plus className="w-4 h-4" />
+                     {t.add}
+                   </button>
+                 </div>
                </div>
-               <button 
-                 onClick={() => addToCart(product)}
-                 className="mt-4 md:mt-5 w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2.5 md:py-3 rounded-xl text-xs md:text-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-[#0F172A] group-hover:text-white"
-               >
-                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                 {t.add}
-               </button>
              </div>
           ))}
         </div>

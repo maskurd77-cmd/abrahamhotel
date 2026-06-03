@@ -30,6 +30,8 @@ export interface Room {
 export interface Product {
   id?: string;
   name: string;
+  name_ar?: string;
+  name_en?: string;
   category: string;
   price: number;
   available: boolean;

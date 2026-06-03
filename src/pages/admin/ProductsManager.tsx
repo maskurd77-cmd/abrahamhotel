@@ -9,12 +9,16 @@ import { cn } from '../../lib/utils';
 export default function ProductsManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [name, setName] = useState('');
+  const [nameAr, setNameAr] = useState('');
+  const [nameEn, setNameEn] = useState('');
   const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [imageUrl, setImageUrl] = useState('');
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editNameAr, setEditNameAr] = useState('');
+  const [editNameEn, setEditNameEn] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
@@ -34,12 +38,14 @@ export default function ProductsManager() {
     try {
       await addDoc(collection(db, 'products'), {
         name,
+        name_ar: nameAr,
+        name_en: nameEn,
         category,
         price: parseFloat(price),
         image_url: imageUrl || null,
         available: true
       });
-      setName(''); setPrice(''); setImageUrl('');
+      setName(''); setNameAr(''); setNameEn(''); setPrice(''); setImageUrl('');
       toast.success('Product Added');
     } catch {
       toast.error('Failed to add product');
@@ -51,6 +57,8 @@ export default function ProductsManager() {
     try {
       await updateDoc(doc(db, 'products', id), {
         name: editName,
+        name_ar: editNameAr,
+        name_en: editNameEn,
         category: editCategory,
         price: parseFloat(editPrice),
         image_url: editImageUrl || null,
@@ -65,6 +73,8 @@ export default function ProductsManager() {
   const startEdit = (p: Product) => {
     setEditingId(p.id!);
     setEditName(p.name);
+    setEditNameAr(p.name_ar || '');
+    setEditNameEn(p.name_en || '');
     setEditCategory(p.category);
     setEditPrice(p.price.toString());
     setEditImageUrl(p.image_url || '');
@@ -109,32 +119,44 @@ export default function ProductsManager() {
           </div>
        </div>
 
-       <form onSubmit={handleAdd} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-end gap-3">
-         <div className="flex-1 space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product Name</label>
-            <input required value={name} onChange={(e)=>setName(e.target.value)} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="e.g. Espresso" />
+       <form onSubmit={handleAdd} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+             <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Name (Kurdish)</label>
+                <input required value={name} onChange={(e)=>setName(e.target.value)} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="e.g. قاوە" />
+             </div>
+             <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Name (Arabic - Optional)</label>
+                <input value={nameAr} onChange={(e)=>setNameAr(e.target.value)} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="e.g. قهوة" />
+             </div>
+             <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Name (English - Optional)</label>
+                <input value={nameEn} onChange={(e)=>setNameEn(e.target.value)} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="e.g. Coffee" />
+             </div>
          </div>
-         <div className="w-40 shrink-0 space-y-1.5 relative">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Category</label>
-            <input required list="categoryList" value={category} onChange={(e)=>setCategory(e.target.value)} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="e.g. Hot Drinks" />
-            <datalist id="categoryList">
-              {categories.map(c => <option key={c} value={c} />)}
-            </datalist>
+         <div className="flex flex-col md:flex-row md:items-end gap-3 w-full">
+           <div className="w-40 shrink-0 space-y-1.5 relative">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Category</label>
+              <input required list="categoryList" value={category} onChange={(e)=>setCategory(e.target.value)} type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="e.g. Hot Drinks" />
+              <datalist id="categoryList">
+                {categories.map(c => <option key={c} value={c} />)}
+              </datalist>
+           </div>
+           <div className="w-32 shrink-0 space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Price (IQD)</label>
+              <input required value={price} onChange={(e)=>setPrice(e.target.value)} type="number" step="100" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="1000" />
+           </div>
+           <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Image URL or File</label>
+              <div className="flex relative">
+                <input value={imageUrl} onChange={(e)=>setImageUrl(e.target.value)} type="url" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors pr-10" placeholder="URL or choose below" />
+              </div>
+              <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setImageUrl)} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-[#0F172A] hover:file:bg-slate-200"/>
+           </div>
+           <button type="submit" className="bg-[#0F172A] hover:bg-slate-800 text-white font-bold px-6 py-2.5 h-[42px] rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2 text-sm w-full md:w-auto mt-4 md:mt-0 mb-[22px]">
+             <Plus className="w-4 h-4"/> Add Item
+           </button>
          </div>
-         <div className="w-32 shrink-0 space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Price (IQD)</label>
-            <input required value={price} onChange={(e)=>setPrice(e.target.value)} type="number" step="100" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors" placeholder="1000" />
-         </div>
-         <div className="flex-1 space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Image URL or File</label>
-            <div className="flex relative">
-              <input value={imageUrl} onChange={(e)=>setImageUrl(e.target.value)} type="url" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#D4AF37] focus:bg-white transition-colors pr-10" placeholder="URL or choose below" />
-            </div>
-            <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setImageUrl)} className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-[#0F172A] hover:file:bg-slate-200"/>
-         </div>
-         <button type="submit" className="bg-[#0F172A] hover:bg-slate-800 text-white font-bold px-6 py-2.5 h-[42px] rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2 text-sm w-full md:w-auto mt-4 md:mt-0 mb-[22px]">
-           <Plus className="w-4 h-4"/> Add Item
-         </button>
        </form>
 
        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1 overflow-auto">
@@ -167,8 +189,10 @@ export default function ProductsManager() {
                    
                    {isEditing ? (
                      <>
-                       <td className="px-6 py-3.5">
-                         <input value={editName} onChange={e=>setEditName(e.target.value)} type="text" className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-[#D4AF37]" />
+                       <td className="px-6 py-3.5 flex flex-col gap-1">
+                         <input value={editName} onChange={e=>setEditName(e.target.value)} type="text" placeholder="Kurdish" className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-[#D4AF37]" />
+                         <input value={editNameAr} onChange={e=>setEditNameAr(e.target.value)} type="text" placeholder="Arabic" className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-[#D4AF37]" />
+                         <input value={editNameEn} onChange={e=>setEditNameEn(e.target.value)} type="text" placeholder="English" className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-[#D4AF37]" />
                        </td>
                        <td className="px-6 py-3.5">
                          <input value={editCategory} onChange={e=>setEditCategory(e.target.value)} type="text" list="categoryListGrid" className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-[#D4AF37]" />
@@ -192,7 +216,11 @@ export default function ProductsManager() {
                      </>
                    ) : (
                      <>
-                       <td className="px-6 py-3.5 font-bold text-slate-800">{p.name}</td>
+                       <td className="px-6 py-3.5">
+                         <div className="font-bold text-slate-800">{p.name}</div>
+                         {p.name_ar && <div className="text-xs text-slate-500">{p.name_ar}</div>}
+                         {p.name_en && <div className="text-xs text-slate-500">{p.name_en}</div>}
+                       </td>
                        <td className="px-6 py-3.5 text-slate-500 capitalize">{p.category}</td>
                        <td className="px-6 py-3.5 font-mono font-bold text-[#D4AF37]">{p.price.toLocaleString()} IQD</td>
                        <td className="px-6 py-3.5">
