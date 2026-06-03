@@ -48,5 +48,6 @@ export interface Order {
   items: OrderItem[];
   total_price: number;
   order_status: 'pending' | 'preparing' | 'ready' | 'completed';
+  payment_status?: 'unpaid' | 'paid';
   created_at: Timestamp;
 }

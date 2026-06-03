@@ -6,7 +6,10 @@ import toast from 'react-hot-toast';
 import { Plus, QrCode, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+import { useNavigate } from 'react-router-dom';
+
 export default function RoomsManager() {
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [newRoomNumber, setNewRoomNumber] = useState('');
   const [newType, setNewType] = useState<'room' | 'table'>('room');
@@ -179,10 +182,17 @@ export default function RoomsManager() {
                 {room.status === 'occupied' ? (
                   <>
                     <button 
-                      onClick={() => checkOut(room.id!)}
+                      onClick={() => navigate(`/pos-shinglbana-manager-2026/pos?tab=${room.id}`)}
                       className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs py-2 rounded-lg font-bold transition-colors shadow-sm"
                     >
-                      Clear
+                      Open POS
+                    </button>
+                    <button 
+                      onClick={() => checkOut(room.id!)}
+                      className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 py-2 px-3 rounded-lg transition-colors border border-red-200"
+                      title="Clear Table Without Payment"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                     <button 
                       title="Print QR Code"
