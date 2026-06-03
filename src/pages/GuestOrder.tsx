@@ -92,6 +92,7 @@ export default function GuestOrder() {
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [isOrdering, setIsOrdering] = useState(false);
   const [viewCart, setViewCart] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string>('All');
 
   useEffect(() => {
     if (!roomNumber) {
@@ -362,7 +363,6 @@ export default function GuestOrder() {
     );
   }
 
-  const [activeCategory, setActiveCategory] = useState<string>('All');
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
 
   const filteredProducts = activeCategory === 'All' ? products : products.filter(p => p.category === activeCategory);
